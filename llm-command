@@ -1,11 +1,36 @@
 #!/usr/bin/env python3
-"""Convert natural language to shell commands using OpenAI API."""
+"""Convert natural language to shell commands using LLM APIs."""
 
 import sys
 import os
 import json
 import urllib.request
 import urllib.error
+
+# Provider configurations
+PROVIDERS = {
+    "openai": {
+        "url": "https://api.openai.com/v1/chat/completions",
+        "env_key": "OPENAI_API_KEY",
+        "model": "gpt-4o-mini",
+    },
+    "claude": {
+        "url": "https://api.anthropic.com/v1/messages",
+        "env_key": "ANTHROPIC_API_KEY",
+        "model": "claude-sonnet-4-20250514",
+    },
+    "groq": {
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "env_key": "GROQ_API_KEY",
+        "model": "llama-3.3-70b-versatile",
+    },
+    "gemini": {
+        "url": "https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent",
+        "env_key": "GEMINI_API_KEY",
+        "model": "gemini-2.5-flash",
+    },
+}
+
 
 def get_context() -> str:
     """Gather shell context for better command generation."""
@@ -90,14 +115,89 @@ def get_context() -> str:
     return '\n'.join(line for line in lines if line)
 
 
-def get_shell_command(description: str) -> str:
-    """Send description to OpenAI and get back a shell command."""
-    api_key = os.environ.get("OPENAI_API_KEY")
-    if not api_key:
-        return "# Error: OPENAI_API_KEY not set"
+def call_openai_compatible(url: str, api_key: str, model: str, system: str, prompt: str) -> str:
+    """Call OpenAI-compatible API (OpenAI, Groq)."""
+    data = json.dumps({
+        "model": model,
+        "messages": [
+            {"role": "system", "content": system},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 256,
+        "temperature": 0
+    }).encode()
 
+    req = urllib.request.Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        "Authorization": f"Bearer {api_key}"
+    })
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+        return result["choices"][0]["message"]["content"].strip()
+
+
+def call_claude(api_key: str, model: str, system: str, prompt: str) -> str:
+    """Call Anthropic Claude API."""
+    data = json.dumps({
+        "model": model,
+        "max_tokens": 256,
+        "system": system,
+        "messages": [{"role": "user", "content": prompt}]
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.anthropic.com/v1/messages",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "X-Api-Key": api_key,
+            "anthropic-version": "2023-06-01"
+        }
+    )
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+        return result["content"][0]["text"].strip()
+
+
+def call_gemini(api_key: str, model: str, system: str, prompt: str) -> str:
+    """Call Google Gemini API."""
+    url = f"https://generativelanguage.googleapis.com/v1beta/models/{model}:generateContent"
+
+    data = json.dumps({
+        "system_instruction": {"parts": [{"text": system}]},
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0, "maxOutputTokens": 256}
+    }).encode()
+
+    req = urllib.request.Request(url, data=data, headers={
+        "Content-Type": "application/json",
+        "x-goog-api-key": api_key
+    })
+
+    with urllib.request.urlopen(req, timeout=30) as resp:
+        result = json.loads(resp.read().decode())
+        return result["candidates"][0]["content"]["parts"][0]["text"].strip()
+
+
+def get_shell_command(description: str) -> str:
+    """Send description to LLM and get back a shell command."""
+    provider_name = os.environ.get("LLM_PROVIDER", "openai").lower()
+
+    if provider_name not in PROVIDERS:
+        return f"# Error: Unknown provider '{provider_name}'. Use: {', '.join(PROVIDERS.keys())}"
+
+    provider = PROVIDERS[provider_name]
+    api_key = os.environ.get(provider["env_key"])
+
+    if not api_key:
+        return f"# Error: {provider['env_key']} not set"
+
+    model = os.environ.get("LLM_MODEL", provider["model"])
     context = get_context()
 
+    system = "You are a shell command generator. Output only the command, nothing else."
     prompt = f"""Convert this natural language description to a single shell command.
 Return ONLY the command, no explanation, no markdown, no code blocks.
 
@@ -105,37 +205,24 @@ Return ONLY the command, no explanation, no markdown, no code blocks.
 
 Description: {description}"""
 
-    data = json.dumps({
-        "model": "gpt-4o-mini",
-        "messages": [
-            {"role": "system", "content": "You are a shell command generator. Output only the command, nothing else."},
-            {"role": "user", "content": prompt}
-        ],
-        "max_tokens": 256,
-        "temperature": 0
-    }).encode()
-
-    req = urllib.request.Request(
-        "https://api.openai.com/v1/chat/completions",
-        data=data,
-        headers={
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        }
-    )
-
     try:
-        with urllib.request.urlopen(req, timeout=30) as resp:
-            result = json.loads(resp.read().decode())
-            return result["choices"][0]["message"]["content"].strip()
+        if provider_name in ("openai", "groq"):
+            return call_openai_compatible(provider["url"], api_key, model, system, prompt)
+        elif provider_name == "claude":
+            return call_claude(api_key, model, system, prompt)
+        elif provider_name == "gemini":
+            return call_gemini(api_key, model, system, prompt)
     except urllib.error.HTTPError as e:
         return f"# Error: {e.code} {e.reason}"
     except Exception as e:
         return f"# Error: {e}"
 
+
 if __name__ == "__main__":
     if len(sys.argv) < 2:
         print("# Usage: llm-command 'description'", file=sys.stderr)
+        print(f"# Providers: {', '.join(PROVIDERS.keys())}", file=sys.stderr)
+        print("# Set LLM_PROVIDER env var to choose (default: openai)", file=sys.stderr)
         sys.exit(1)
 
     description = " ".join(sys.argv[1:])

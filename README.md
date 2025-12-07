@@ -1,11 +1,20 @@
 # llm-shell-commands
 
-Convert natural language to shell commands using OpenAI API.
+Convert natural language to shell commands using LLM APIs.
+
+Supports multiple providers: OpenAI, Claude, Groq, and Gemini.
 
 ## Installation
 
-1. Ensure `OPENAI_API_KEY` is set in your environment
-2. Source the appropriate plugin for your shell:
+1. Set the API key for your chosen provider:
+   - `OPENAI_API_KEY` for OpenAI (default)
+   - `ANTHROPIC_API_KEY` for Claude
+   - `GROQ_API_KEY` for Groq
+   - `GEMINI_API_KEY` for Gemini
+
+2. Optionally set `LLM_PROVIDER` to choose provider (default: `openai`)
+
+3. Source the appropriate plugin for your shell:
 
 **zsh** (in `~/.zshrc`):
 ```zsh
@@ -42,8 +51,19 @@ The tool automatically includes:
 - Shell type
 - Files in current directory (up to 20)
 
+## Providers
+
+| Provider | Env Variable | Default Model |
+|----------|--------------|---------------|
+| openai   | `OPENAI_API_KEY` | gpt-4o-mini |
+| claude   | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| groq     | `GROQ_API_KEY` | llama-3.3-70b-versatile |
+| gemini   | `GEMINI_API_KEY` | gemini-2.5-flash |
+
+Override the model with `LLM_MODEL` environment variable.
+
 ## Requirements
 
 - Python 3
 - zsh, bash, or fish
-- OpenAI API key
+- API key for at least one provider
