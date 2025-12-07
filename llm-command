@@ -1,0 +1,101 @@
+#!/usr/bin/env python3
+"""Convert natural language to shell commands using OpenAI API."""
+
+import sys
+import os
+import json
+import urllib.request
+import urllib.error
+
+def get_context() -> str:
+    """Gather shell context for better command generation."""
+    import subprocess
+    import platform
+
+    cwd = os.getcwd()
+    shell = os.environ.get("SHELL", "unknown").split("/")[-1]
+
+    # Detect OS/distro
+    os_info = platform.system()
+    if os_info == "Linux":
+        try:
+            with open("/etc/os-release") as f:
+                for line in f:
+                    if line.startswith("PRETTY_NAME="):
+                        os_info = line.split("=", 1)[1].strip().strip('"')
+                        break
+        except:
+            pass
+    elif os_info == "Darwin":
+        os_info = "macOS"
+
+    # Get directory listing (limited)
+    try:
+        files = subprocess.check_output(
+            ["ls", "-1"], timeout=2, stderr=subprocess.DEVNULL
+        ).decode().strip()
+        # Limit to first 20 items
+        file_list = files.split('\n')[:20]
+        if len(file_list) == 20:
+            file_list.append("...")
+        files = '\n'.join(file_list)
+    except:
+        files = ""
+
+    return f"""Current directory: {cwd}
+OS: {os_info}
+Shell: {shell}
+Files in current directory:
+{files}"""
+
+
+def get_shell_command(description: str) -> str:
+    """Send description to OpenAI and get back a shell command."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return "# Error: OPENAI_API_KEY not set"
+
+    context = get_context()
+
+    prompt = f"""Convert this natural language description to a single shell command.
+Return ONLY the command, no explanation, no markdown, no code blocks.
+
+{context}
+
+Description: {description}"""
+
+    data = json.dumps({
+        "model": "gpt-4o-mini",
+        "messages": [
+            {"role": "system", "content": "You are a shell command generator. Output only the command, nothing else."},
+            {"role": "user", "content": prompt}
+        ],
+        "max_tokens": 256,
+        "temperature": 0
+    }).encode()
+
+    req = urllib.request.Request(
+        "https://api.openai.com/v1/chat/completions",
+        data=data,
+        headers={
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+    )
+
+    try:
+        with urllib.request.urlopen(req, timeout=30) as resp:
+            result = json.loads(resp.read().decode())
+            return result["choices"][0]["message"]["content"].strip()
+    except urllib.error.HTTPError as e:
+        return f"# Error: {e.code} {e.reason}"
+    except Exception as e:
+        return f"# Error: {e}"
+
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("# Usage: llm-command 'description'", file=sys.stderr)
+        sys.exit(1)
+
+    description = " ".join(sys.argv[1:])
+    print(get_shell_command(description))
