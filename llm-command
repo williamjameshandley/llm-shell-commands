@@ -123,7 +123,6 @@ def call_openai_compatible(url: str, api_key: str, model: str, system: str, prom
             {"role": "system", "content": system},
             {"role": "user", "content": prompt}
         ],
-        "max_tokens": 150,
         "temperature": 0
     }).encode()
 
@@ -141,7 +140,7 @@ def call_claude(api_key: str, model: str, system: str, prompt: str) -> str:
     """Call Anthropic Claude API."""
     data = json.dumps({
         "model": model,
-        "max_tokens": 150,
+        "max_tokens": 1024,  # Required by Claude API
         "system": system,
         "messages": [{"role": "user", "content": prompt}]
     }).encode()
@@ -168,7 +167,7 @@ def call_gemini(api_key: str, model: str, system: str, prompt: str) -> str:
     data = json.dumps({
         "system_instruction": {"parts": [{"text": system}]},
         "contents": [{"parts": [{"text": prompt}]}],
-        "generationConfig": {"temperature": 0, "maxOutputTokens": 150}
+        "generationConfig": {"temperature": 0}
     }).encode()
 
     req = urllib.request.Request(url, data=data, headers={
