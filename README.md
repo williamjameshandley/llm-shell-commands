@@ -56,7 +56,7 @@ The tool automatically includes:
 | Provider | Env Variable | Default Model |
 |----------|--------------|---------------|
 | openai   | `OPENAI_API_KEY` | gpt-4o-mini |
-| claude   | `ANTHROPIC_API_KEY` | claude-sonnet-4-20250514 |
+| claude   | `ANTHROPIC_API_KEY` | claude-3-5-haiku-20241022 |
 | groq     | `GROQ_API_KEY` | llama-3.3-70b-versatile |
 | gemini   | `GEMINI_API_KEY` | gemini-2.5-flash |
 
