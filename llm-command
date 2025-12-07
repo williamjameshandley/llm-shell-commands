@@ -140,7 +140,7 @@ def call_claude(api_key: str, model: str, system: str, prompt: str) -> str:
     """Call Anthropic Claude API."""
     data = json.dumps({
         "model": model,
-        "max_tokens": 1024,  # Required by Claude API
+        "max_tokens": 8192,
         "system": system,
         "messages": [{"role": "user", "content": prompt}]
     }).encode()
