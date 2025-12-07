@@ -5,10 +5,21 @@ Convert natural language to shell commands using OpenAI API.
 ## Installation
 
 1. Ensure `OPENAI_API_KEY` is set in your environment
-2. Source the zsh plugin in your `.zshrc`:
+2. Source the appropriate plugin for your shell:
 
+**zsh** (in `~/.zshrc`):
 ```zsh
 source /path/to/llm-shell.zsh
+```
+
+**bash** (in `~/.bashrc`):
+```bash
+source /path/to/llm-shell.bash
+```
+
+**fish** (in `~/.config/fish/config.fish`):
+```fish
+source /path/to/llm-shell.fish
 ```
 
 ## Usage
@@ -34,5 +45,5 @@ The tool automatically includes:
 ## Requirements
 
 - Python 3
-- zsh
+- zsh, bash, or fish
 - OpenAI API key
